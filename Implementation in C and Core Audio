@@ -1,0 +1,57 @@
+static OSStatus renderInput(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData){
+    AudioSynthesiser * audioController = (AudioSynthesiser *)inRefCon;
+    // Get a pointer to the dataBuffer of the AudioBufferList
+    AudioSampleType * outA = (AudioSampleType *) ioData->mBuffers[0].mData;
+    if(!audioController->playing){
+        for (UInt32 i = 0; i < inNumberFrames; ++i){
+            outA[i] = (SInt16)0;
+        }
+        return noErr;
+    }
+    Track * track = &audioController->tracks[inBusNumber];
+    SynthInstrument * instrument = (SynthInstrument *)track;
+    float frequency_deviation;
+    float FMFrequency;
+    // Loop through the callback buffer, generating samples
+    for (UInt32 i = 0; i < inNumberFrames; ++i){
+        float signal = 0;
+        for (int x = 0; x < 10; x++) {
+            Note * note = track->notes_playing[x];
+            if(note){
+                //Envelope code removed
+                //Calculate signal
+                if (instrument->FMIndex) { //Apply FM
+                    FMFrequency = note->frequency*instrument->FMRatio; //FM frequency is factor of note frequency.
+                    note->FMPhase += FMFrequency / kGraphSampleRate; //Phase of modulator.
+                    frequency_deviation = sinf(note->FMPhase * M_PI)*instrument->FMIndex*FMFrequency; //Frequency deviation. Max deviation is a factor of the FM frequency. Modulation is done by a sine wave. 
+                    note->phase += (note->frequency + frequency_deviation) / kGraphSampleRate; //Adjust phase with deviation
+                    // Reset the phase value to prevent the float from overflowing
+                    if (note->FMPhase >= 1){
+                        note->FMPhase--;
+                    }
+                }else{
+                    note->phase += note->frequency/ kGraphSampleRate; //Adjust phase without deviation
+                }
+                // Calculate the next sample
+                signal += instrument->wave_function(note->phase,instrument->wave_parameter)*track->note_amplitude[x];
+                // Reset the phase value to prevent the float from overflowing
+                if (note->phase >= 1){
+                    note->phase--;
+                }
+            } //Else nothing added
+        }
+        if(signal > 1.0){
+            signal = 1;
+        }else if(signal < -1.0){
+            signal = -1.0;
+        }
+        audioController->wave[audioController->wave_last] = signal;
+        if (audioController->wave_last == 499) {
+            audioController->wave_last = 0;
+        }else{
+            audioController->wave_last++;
+        }
+        outA[i] = (SInt16)(signal * 32767.0f);
+    }
+    return noErr;
+}
