@@ -1,0 +1,26 @@
+function ProduceSample(instrument, notes_playing)
+    for each note in notes_playing
+        if note.isPlaying()
+            # Calculate signal
+            if instrument.FMIndex != 0 # Apply FM
+                FMFrequency = note.frequency*instrument.FMRatio; # FM frequency is factor of note frequency.
+                note.FMPhase = note.FMPhase + FMFrequency / kGraphSampleRate # Phase of modulator.
+                frequencyDeviation = sin(note.FMPhase * PI)*instrument.FMIndex*FMFrequency # Frequency deviation. Max deviation is a factor of the FM frequency. Modulation is done by a sine wave. 
+                note.phase = note.phase + (note.frequency + frequencyDeviation) / kGraphSampleRate # Adjust phase with deviation
+                # Reset the phase value to prevent the float from overflowing
+                if note.FMPhase >= 1
+                    note.FMPhase = note.FMPhase - 1
+                end if
+            else # No FM applied
+                note.phase = note.phase + note.frequency / kGraphSampleRate # Adjust phase without deviation
+            end if
+            # Calculate the next sample
+            signal = signal + instrument.waveFunction(note.phase,instrument.waveParameter)*note.amplitude
+            # Reset the phase value to prevent the float from overflowing
+            if note.phase >= 1
+                note.phase = note.phase - 1
+            end if
+        end if
+    end loop
+    return signal
+end function 
