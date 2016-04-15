@@ -1,0 +1,5 @@
+#signal called f. At every time step t (phase) generate sample s by evaluating f(t). 
+#Modulate the frequency of f with a modulator called m, at t interval
+
+
+s = f(t + m(t))
